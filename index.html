@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YML Календарь</title>
+  <style>
+    :root {
+      --bg: #f4efe6;
+      --panel: rgba(255, 252, 246, 0.92);
+      --panel-strong: #fffdf8;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --accent: #1d4ed8;
+      --accent-soft: #dbeafe;
+      --holiday: #ff0000;
+      --holiday-soft: #ffedd5;
+      --holiday-day-bg: rgba(244, 114, 182, 0.15);
+      --event-bg: #fde68a;
+      --event-border: #059669;
+      --today-ring: #0f766e;
+      --border: rgba(31, 41, 55, 0.12);
+      --shadow: 0 18px 48px rgba(84, 62, 38, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(29, 78, 216, 0.12), transparent 30%),
+        radial-gradient(circle at bottom right, rgba(194, 65, 12, 0.12), transparent 25%),
+        linear-gradient(180deg, #f9f5ee 0%, #f2ebdf 100%);
+      min-height: 100vh;
+    }
+
+    .layout {
+      width: 100%;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .panel {
+      background: var(--panel);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.65);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+    }
+
+    .calendar-panel {
+      padding: 24px;
+    }
+
+    .hero {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    h1, h2, h3 {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 4vw, 3.3rem);
+      line-height: 0.95;
+      letter-spacing: -0.06em;
+    }
+
+    .subtitle {
+      margin-top: 10px;
+      color: var(--muted);
+      max-width: 720px;
+      line-height: 1.5;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+      padding: 16px;
+      background: rgba(255, 255, 255, 0.55);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+    }
+
+    .nav-group,
+    .view-group,
+    .file-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    button,
+    select,
+    input,
+    textarea {
+      font: inherit;
+    }
+
+    button,
+    .button-like {
+      border: 0;
+      border-radius: 12px;
+      padding: 10px 14px;
+      background: var(--text);
+      color: #fff;
+      cursor: pointer;
+      transition: transform 0.15s ease, opacity 0.15s ease, background 0.15s ease;
+    }
+
+    button.secondary,
+    .button-like.secondary {
+      background: #fff;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    button:hover,
+    .button-like:hover {
+      transform: translateY(-1px);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    select,
+    input,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 12px;
+      background: #fffefb;
+      color: var(--text);
+    }
+
+    textarea {
+      min-height: 84px;
+      resize: vertical;
+    }
+
+    .status {
+      margin-left: auto;
+      color: var(--muted);
+      font-size: 0.95rem;
+      min-height: 1.2em;
+    }
+
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 18px;
+    }
+
+    .calendar-grid.capped-three {
+      grid-template-columns: repeat(3, minmax(280px, 1fr));
+    }
+
+    .events-section {
+      margin-top: 24px;
+    }
+
+    .month-card {
+      background: var(--panel-strong);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      overflow: hidden;
+    }
+
+    .month-header {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(135deg, rgba(29, 78, 216, 0.08), rgba(255, 255, 255, 0.85));
+    }
+
+    .month-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+    }
+
+    .weekdays,
+    .days {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+    }
+
+    .weekday {
+      padding: 10px 6px;
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .day-cell {
+      min-height: 92px;
+      border-top: 1px solid rgba(31, 41, 55, 0.08);
+      border-right: 1px solid rgba(31, 41, 55, 0.08);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      background: #fff;
+      position: relative;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .day-cell:nth-child(7n) {
+      border-right: 0;
+    }
+
+    .day-cell:hover {
+      transform: translateY(-1px);
+      box-shadow: inset 0 0 0 1px rgba(29, 78, 216, 0.15);
+    }
+
+    .day-cell.outside {
+      background: #f7f4ee;
+      color: #9ca3af;
+      cursor: default;
+    }
+
+    .day-cell.outside:hover {
+      transform: none;
+      box-shadow: none;
+    }
+
+    .day-cell.weekend-day,
+    .day-cell.holiday-day {
+      background: var(--holiday-day-bg);
+    }
+
+    .day-cell.selected::before {
+      content: "";
+      position: absolute;
+      inset: 2px;
+      border: 2px solid var(--accent);
+      border-radius: 0;
+      pointer-events: none;
+    }
+
+    .day-number {
+      padding: 8px 8px 0;
+      font-weight: 700;
+      font-size: 0.98rem;
+    }
+
+    .day-number.weekend,
+    .day-number.holiday {
+      color: var(--holiday);
+    }
+
+    .cell-label {
+      padding: 0 8px;
+      font-size: 0.78rem;
+      line-height: 1.25;
+      color: var(--muted);
+    }
+
+    .cell-label.holiday-label {
+      color: var(--holiday);
+      font-weight: 600;
+    }
+
+    .event-label {
+      width: 100%;
+      box-sizing: border-box;
+      font-size: 0.76rem;
+      line-height: 1.25;
+      background: var(--event-bg);
+      border: 0;
+      border-radius: 0;
+      padding: 8px 10px;
+    }
+
+    .sidebar-section {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 16px;
+      background: rgba(255, 255, 255, 0.58);
+      border-radius: 18px;
+      border: 1px solid var(--border);
+    }
+
+    .hint,
+    .empty {
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+
+    .record-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 260px;
+      overflow: auto;
+    }
+
+    .record-item {
+      display: block;
+      padding: 10px 12px;
+      background: #fffdf8;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+    }
+
+    .record-item strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .record-item small {
+      color: var(--muted);
+    }
+
+    .hidden-input {
+      display: none;
+    }
+
+    @media (max-width: 1100px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .calendar-grid.capped-three {
+        grid-template-columns: repeat(2, minmax(280px, 1fr));
+      }
+    }
+
+    @media (max-width: 760px) {
+      .layout {
+        padding: 14px;
+      }
+
+      .calendar-panel {
+        padding: 16px;
+      }
+
+      .hero {
+        flex-direction: column;
+      }
+
+      .toolbar {
+        padding: 12px;
+      }
+
+      .calendar-grid.capped-three {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <main class="panel calendar-panel">
+      <section class="hero">
+        <div>
+          <h1>YML календарь</h1>
+        </div>
+      </section>
+
+      <section class="toolbar">
+        <div class="nav-group">
+          <button id="prevBtn" type="button" class="secondary">←</button>
+          <button id="todayBtn" type="button" class="secondary">Сегодня</button>
+          <button id="nextBtn" type="button" class="secondary">→</button>
+        </div>
+
+        <div class="view-group">
+          <select id="viewMode">
+            <option value="1">Месяц</option>
+            <option value="3" selected>3 месяца</option>
+            <option value="6">Полгода</option>
+            <option value="12">Год</option>
+          </select>
+        </div>
+
+        <div class="file-group">
+          <button id="loadYamlBtn" type="button" class="secondary">Открыть YML</button>
+          <input id="yamlFileInput" class="hidden-input" type="file" accept=".yml,.yaml,text/yaml,application/x-yaml">
+        </div>
+
+        <div id="statusText" class="status"></div>
+      </section>
+
+      <section id="calendarGrid" class="calendar-grid"></section>
+
+      <section class="sidebar-section events-section">
+        <h2>События</h2>
+        <div id="eventList" class="record-list"></div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const MONTH_NAMES = [
+      "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+      "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
+    ];
+    const WEEKDAY_NAMES = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+    const EMPTY_DATA = {
+      holidays: [],
+      events: []
+    };
+
+    const state = {
+      data: structuredClone(EMPTY_DATA),
+      viewMonths: 3,
+      baseDate: startOfMonth(new Date()),
+      selectedDate: formatDate(new Date())
+    };
+
+    const elements = {
+      calendarGrid: document.getElementById("calendarGrid"),
+      viewMode: document.getElementById("viewMode"),
+      prevBtn: document.getElementById("prevBtn"),
+      nextBtn: document.getElementById("nextBtn"),
+      todayBtn: document.getElementById("todayBtn"),
+      eventList: document.getElementById("eventList"),
+      loadYamlBtn: document.getElementById("loadYamlBtn"),
+      yamlFileInput: document.getElementById("yamlFileInput"),
+      statusText: document.getElementById("statusText")
+    };
+
+    function startOfMonth(date) {
+      return new Date(date.getFullYear(), date.getMonth(), 1);
+    }
+
+    function formatDate(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
+    function parseDateString(dateStr) {
+      const [year, month, day] = dateStr.split("-").map(Number);
+      return new Date(year, month - 1, day);
+    }
+
+    function normalizeHolidayDates(sectionData) {
+      if (!Array.isArray(sectionData)) {
+        return [];
+      }
+
+      return sectionData
+        .filter(item => typeof item === "string" && item.trim())
+        .map(item => item.trim())
+        .sort((a, b) => a.localeCompare(b));
+    }
+
+    function normalizeEventSection(sectionData, fallbackTitle) {
+      const records = [];
+
+      if (!sectionData || typeof sectionData !== "object") {
+        return records;
+      }
+
+      for (const [date, titles] of Object.entries(sectionData)) {
+        if (typeof date !== "string" || !Array.isArray(titles)) {
+          continue;
+        }
+
+        for (const rawTitle of titles) {
+          const title = String(rawTitle || fallbackTitle).trim() || fallbackTitle;
+          records.push({ date, title });
+        }
+      }
+
+      return records.sort((a, b) => a.date.localeCompare(b.date));
+    }
+
+    function normalizeData(data) {
+      return {
+        holidays: normalizeHolidayDates(data?.holidays),
+        events: normalizeEventSection(data?.events, "Событие")
+      };
+    }
+
+    function parseYamlScalar(value) {
+      const trimmed = value.trim();
+
+      if ((trimmed.startsWith("\"") && trimmed.endsWith("\"")) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+        return trimmed.slice(1, -1)
+          .replace(/\\\\/g, "\\")
+          .replace(/\\"/g, "\"")
+          .replace(/\\'/g, "'");
+      }
+
+      return trimmed;
+    }
+
+    function parseSimpleYaml(yamlText) {
+      const result = { holidays: [], events: {} };
+      const lines = yamlText.split(/\r?\n/);
+      let currentSection = null;
+      let currentDate = null;
+
+      for (const rawLine of lines) {
+        const line = rawLine.replace(/\t/g, "    ");
+        const trimmed = line.trim();
+
+        if (!trimmed || trimmed.startsWith("#")) {
+          continue;
+        }
+
+        const sectionMatch = trimmed.match(/^(holidays|events):\s*(?:\[\])?$/);
+        if (sectionMatch) {
+          currentSection = sectionMatch[1];
+          currentDate = null;
+          continue;
+        }
+
+        if (!currentSection) {
+          continue;
+        }
+
+        if (currentSection === "holidays") {
+          const holidayMatch = line.match(/^\s{2}-\s+(.+)\s*$/);
+          if (holidayMatch) {
+            result.holidays.push(parseYamlScalar(holidayMatch[1]));
+          }
+          continue;
+        }
+
+        const dateMatch = line.match(/^\s{2}([0-9]{4}-[0-9]{2}-[0-9]{2}):\s*$/);
+        if (dateMatch) {
+          currentDate = dateMatch[1];
+          result[currentSection][currentDate] = [];
+          continue;
+        }
+
+        const titleMatch = line.match(/^\s{4}-\s+(.+)\s*$/);
+        if (titleMatch && currentDate) {
+          result[currentSection][currentDate].push(parseYamlScalar(titleMatch[1]));
+        }
+      }
+
+      return result;
+    }
+
+    function getHolidayMap() {
+      return new Map(state.data.holidays.map(date => [date, true]));
+    }
+
+    function getEventsMap() {
+      const map = new Map();
+      for (const item of state.data.events) {
+        if (!map.has(item.date)) {
+          map.set(item.date, []);
+        }
+        map.get(item.date).push(item);
+      }
+      return map;
+    }
+
+    function render() {
+      renderCalendar();
+      renderLists();
+    }
+
+    function setStatus(message) {
+      elements.statusText.textContent = message;
+    }
+
+    function renderCalendar() {
+      elements.calendarGrid.innerHTML = "";
+      elements.calendarGrid.classList.toggle("capped-three", state.viewMonths >= 6);
+      const holidays = getHolidayMap();
+      const events = getEventsMap();
+
+      for (let offset = 0; offset < state.viewMonths; offset += 1) {
+        const monthDate = new Date(state.baseDate.getFullYear(), state.baseDate.getMonth() + offset, 1);
+        elements.calendarGrid.appendChild(createMonthCard(monthDate, holidays, events));
+      }
+    }
+
+    function createMonthCard(monthDate, holidays, events) {
+      const card = document.createElement("article");
+      card.className = "month-card";
+
+      const header = document.createElement("div");
+      header.className = "month-header";
+
+      const title = document.createElement("div");
+      title.className = "month-title";
+      title.textContent = `${MONTH_NAMES[monthDate.getMonth()]} ${monthDate.getFullYear()}`;
+      header.appendChild(title);
+      card.appendChild(header);
+
+      const weekdays = document.createElement("div");
+      weekdays.className = "weekdays";
+      for (const dayName of WEEKDAY_NAMES) {
+        const cell = document.createElement("div");
+        cell.className = "weekday";
+        cell.textContent = dayName;
+        weekdays.appendChild(cell);
+      }
+      card.appendChild(weekdays);
+
+      const days = document.createElement("div");
+      days.className = "days";
+
+      const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+      const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+      const startWeekday = (monthStart.getDay() + 6) % 7;
+      const totalDays = monthEnd.getDate();
+      const leadingDays = startWeekday;
+      const totalCells = Math.ceil((leadingDays + totalDays) / 7) * 7;
+      const todayString = formatDate(new Date());
+
+      for (let index = 0; index < totalCells; index += 1) {
+        const cell = document.createElement("div");
+        cell.className = "day-cell";
+        const dayNumber = index - leadingDays + 1;
+        const inCurrentMonth = dayNumber >= 1 && dayNumber <= totalDays;
+
+        if (!inCurrentMonth) {
+          cell.classList.add("outside");
+          days.appendChild(cell);
+          continue;
+        }
+
+        const cellDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), dayNumber);
+        const cellDateStr = formatDate(cellDate);
+        const isWeekend = cellDate.getDay() === 0 || cellDate.getDay() === 6;
+        const holiday = holidays.get(cellDateStr);
+        const dayEvents = events.get(cellDateStr) || [];
+
+        if (isWeekend) {
+          cell.classList.add("weekend-day");
+        }
+        if (holiday) {
+          cell.classList.add("holiday-day");
+        }
+        if (dayEvents.length > 0) {
+          cell.classList.add("has-event");
+        }
+        if (cellDateStr === todayString) {
+          cell.classList.add("today");
+        }
+        if (cellDateStr === state.selectedDate) {
+          cell.classList.add("selected");
+        }
+
+        const number = document.createElement("div");
+        number.className = "day-number";
+        if (isWeekend) {
+          number.classList.add("weekend");
+        }
+        if (holiday) {
+          number.classList.add("holiday");
+        }
+        number.textContent = String(cellDate.getDate());
+        cell.appendChild(number);
+
+        for (const event of dayEvents.slice(0, 2)) {
+          const eventLabel = document.createElement("div");
+          eventLabel.className = "event-label";
+          eventLabel.textContent = event.title;
+          cell.appendChild(eventLabel);
+        }
+
+        if (dayEvents.length > 2) {
+          const more = document.createElement("div");
+          more.className = "cell-label";
+          more.textContent = `Еще: ${dayEvents.length - 2}`;
+          cell.appendChild(more);
+        }
+
+        cell.addEventListener("click", () => {
+          state.selectedDate = cellDateStr;
+          render();
+        });
+
+        days.appendChild(cell);
+      }
+
+      card.appendChild(days);
+      return card;
+    }
+
+    function renderLists() {
+      renderRecordList(elements.eventList, state.data.events);
+    }
+
+    function renderRecordList(container, records) {
+      container.innerHTML = "";
+
+      if (records.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.textContent = "Событий пока нет.";
+        container.appendChild(empty);
+        return;
+      }
+
+      for (const record of records) {
+        const item = document.createElement("div");
+        item.className = "record-item";
+
+        const textWrap = document.createElement("div");
+        const title = document.createElement("strong");
+        title.textContent = record.title;
+        const meta = document.createElement("small");
+        meta.textContent = record.date;
+
+        textWrap.appendChild(title);
+        textWrap.appendChild(meta);
+
+        item.appendChild(textWrap);
+        container.appendChild(item);
+      }
+    }
+
+    async function loadYamlText(yamlText) {
+      state.data = normalizeData(parseSimpleYaml(yamlText));
+      render();
+    }
+
+    async function loadYamlFromFile(file) {
+      if (!file) {
+        return;
+      }
+
+      const yamlText = await file.text();
+      await loadYamlText(yamlText);
+      setStatus(`Загружено: ${file.name}`);
+    }
+
+    function getNavigationStep() {
+      return state.viewMonths === 3 ? 1 : state.viewMonths;
+    }
+
+    function shiftRange(direction) {
+      state.baseDate = new Date(state.baseDate.getFullYear(), state.baseDate.getMonth() + (getNavigationStep() * direction), 1);
+      render();
+    }
+
+    elements.viewMode.addEventListener("change", () => {
+      state.viewMonths = Number(elements.viewMode.value);
+      render();
+    });
+
+    elements.prevBtn.addEventListener("click", () => shiftRange(-1));
+    elements.nextBtn.addEventListener("click", () => shiftRange(1));
+    elements.todayBtn.addEventListener("click", () => {
+      state.baseDate = startOfMonth(new Date());
+      render();
+    });
+    elements.loadYamlBtn.addEventListener("click", () => {
+      elements.yamlFileInput.click();
+    });
+    elements.yamlFileInput.addEventListener("change", async (event) => {
+      const [file] = event.target.files;
+      try {
+        await loadYamlFromFile(file);
+      } catch (error) {
+        console.error(error);
+        setStatus("Не удалось прочитать выбранный YML.");
+      } finally {
+        event.target.value = "";
+      }
+    });
+
+    setStatus("Откройте YML, чтобы загрузить праздники и события.");
+    render();
+  </script>
+</body>
+</html>
