@@ -511,10 +511,15 @@
       return trimmed;
     }
 
+    function buildDateFromParts(year, partialDate) {
+      return `${String(year).trim()}-${String(partialDate).trim()}`;
+    }
+
     function parseSimpleYaml(yamlText) {
       const result = { holidays: [], working_weekends: [], events: {} };
       const lines = yamlText.split(/\r?\n/);
       let currentSection = null;
+      let currentYear = null;
       let currentDate = null;
 
       for (const rawLine of lines) {
@@ -528,6 +533,7 @@
         const sectionMatch = trimmed.match(/^(holidays|working_weekends|events):\s*(?:\[\])?$/);
         if (sectionMatch) {
           currentSection = sectionMatch[1];
+          currentYear = null;
           currentDate = null;
           continue;
         }
@@ -537,10 +543,31 @@
         }
 
         if (currentSection === "holidays" || currentSection === "working_weekends") {
+          const yearMatch = line.match(/^\s{2}([0-9]{4}):\s*$/);
+          if (yearMatch) {
+            currentYear = yearMatch[1];
+            currentDate = null;
+            continue;
+          }
+
           const holidayMatch = line.match(/^\s{2}-\s+(.+)\s*$/);
           if (holidayMatch) {
             result[currentSection].push(parseYamlScalar(holidayMatch[1]));
+            currentYear = null;
+            continue;
           }
+
+          const partialHolidayMatch = line.match(/^\s{4}-\s+([0-9]{2}-[0-9]{2})\s*$/);
+          if (partialHolidayMatch && currentYear) {
+            result[currentSection].push(buildDateFromParts(currentYear, parseYamlScalar(partialHolidayMatch[1])));
+          }
+          continue;
+        }
+
+        const yearMatch = line.match(/^\s{2}([0-9]{4}):\s*$/);
+        if (yearMatch) {
+          currentYear = yearMatch[1];
+          currentDate = null;
           continue;
         }
 
@@ -548,12 +575,26 @@
         if (dateMatch) {
           currentDate = dateMatch[1];
           result[currentSection][currentDate] = [];
+          currentYear = null;
+          continue;
+        }
+
+        const partialDateMatch = line.match(/^\s{4}([0-9]{2}-[0-9]{2}):\s*$/);
+        if (partialDateMatch && currentYear) {
+          currentDate = buildDateFromParts(currentYear, partialDateMatch[1]);
+          result[currentSection][currentDate] = [];
           continue;
         }
 
         const titleMatch = line.match(/^\s{4}-\s+(.+)\s*$/);
-        if (titleMatch && currentDate) {
+        if (titleMatch && currentDate && !currentYear) {
           result[currentSection][currentDate].push(parseYamlScalar(titleMatch[1]));
+          continue;
+        }
+
+        const nestedTitleMatch = line.match(/^\s{6}-\s+(.+)\s*$/);
+        if (nestedTitleMatch && currentDate && currentYear) {
+          result[currentSection][currentDate].push(parseYamlScalar(nestedTitleMatch[1]));
         }
       }
 
