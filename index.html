@@ -419,6 +419,7 @@
     const WEEKDAY_NAMES = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
     const EMPTY_DATA = {
       holidays: [],
+      workingWeekends: [],
       events: []
     };
 
@@ -492,6 +493,7 @@
     function normalizeData(data) {
       return {
         holidays: normalizeHolidayDates(data?.holidays),
+        workingWeekends: normalizeHolidayDates(data?.working_weekends),
         events: normalizeEventSection(data?.events, "Событие")
       };
     }
@@ -510,7 +512,7 @@
     }
 
     function parseSimpleYaml(yamlText) {
-      const result = { holidays: [], events: {} };
+      const result = { holidays: [], working_weekends: [], events: {} };
       const lines = yamlText.split(/\r?\n/);
       let currentSection = null;
       let currentDate = null;
@@ -523,7 +525,7 @@
           continue;
         }
 
-        const sectionMatch = trimmed.match(/^(holidays|events):\s*(?:\[\])?$/);
+        const sectionMatch = trimmed.match(/^(holidays|working_weekends|events):\s*(?:\[\])?$/);
         if (sectionMatch) {
           currentSection = sectionMatch[1];
           currentDate = null;
@@ -534,10 +536,10 @@
           continue;
         }
 
-        if (currentSection === "holidays") {
+        if (currentSection === "holidays" || currentSection === "working_weekends") {
           const holidayMatch = line.match(/^\s{2}-\s+(.+)\s*$/);
           if (holidayMatch) {
-            result.holidays.push(parseYamlScalar(holidayMatch[1]));
+            result[currentSection].push(parseYamlScalar(holidayMatch[1]));
           }
           continue;
         }
@@ -560,6 +562,10 @@
 
     function getHolidayMap() {
       return new Map(state.data.holidays.map(date => [date, true]));
+    }
+
+    function getWorkingWeekendMap() {
+      return new Map(state.data.workingWeekends.map(date => [date, true]));
     }
 
     function getEventsMap() {
@@ -586,15 +592,16 @@
       elements.calendarGrid.innerHTML = "";
       elements.calendarGrid.classList.toggle("capped-three", state.viewMonths >= 6);
       const holidays = getHolidayMap();
+      const workingWeekends = getWorkingWeekendMap();
       const events = getEventsMap();
 
       for (let offset = 0; offset < state.viewMonths; offset += 1) {
         const monthDate = new Date(state.baseDate.getFullYear(), state.baseDate.getMonth() + offset, 1);
-        elements.calendarGrid.appendChild(createMonthCard(monthDate, holidays, events));
+        elements.calendarGrid.appendChild(createMonthCard(monthDate, holidays, workingWeekends, events));
       }
     }
 
-    function createMonthCard(monthDate, holidays, events) {
+    function createMonthCard(monthDate, holidays, workingWeekends, events) {
       const card = document.createElement("article");
       card.className = "month-card";
 
@@ -642,7 +649,8 @@
 
         const cellDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), dayNumber);
         const cellDateStr = formatDate(cellDate);
-        const isWeekend = cellDate.getDay() === 0 || cellDate.getDay() === 6;
+        const isWorkingWeekend = workingWeekends.get(cellDateStr);
+        const isWeekend = (cellDate.getDay() === 0 || cellDate.getDay() === 6) && !isWorkingWeekend;
         const holiday = holidays.get(cellDateStr);
         const dayEvents = events.get(cellDateStr) || [];
 
