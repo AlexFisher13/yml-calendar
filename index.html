@@ -574,7 +574,16 @@
         const dateMatch = line.match(/^\s{2}([0-9]{4}-[0-9]{2}-[0-9]{2}):\s*$/);
         if (dateMatch) {
           currentDate = dateMatch[1];
-          result[currentSection][currentDate] = [];
+          result[currentSection][currentDate] ||= [];
+          currentYear = null;
+          continue;
+        }
+
+        const dateWithTitleMatch = line.match(/^\s{2}([0-9]{4}-[0-9]{2}-[0-9]{2}):\s+(.+)\s*$/);
+        if (dateWithTitleMatch) {
+          currentDate = dateWithTitleMatch[1];
+          result[currentSection][currentDate] ||= [];
+          result[currentSection][currentDate].push(parseYamlScalar(dateWithTitleMatch[2]));
           currentYear = null;
           continue;
         }
@@ -582,7 +591,15 @@
         const partialDateMatch = line.match(/^\s{4}([0-9]{2}-[0-9]{2}):\s*$/);
         if (partialDateMatch && currentYear) {
           currentDate = buildDateFromParts(currentYear, partialDateMatch[1]);
-          result[currentSection][currentDate] = [];
+          result[currentSection][currentDate] ||= [];
+          continue;
+        }
+
+        const partialDateWithTitleMatch = line.match(/^\s{4}([0-9]{2}-[0-9]{2}):\s+(.+)\s*$/);
+        if (partialDateWithTitleMatch && currentYear) {
+          currentDate = buildDateFromParts(currentYear, partialDateWithTitleMatch[1]);
+          result[currentSection][currentDate] ||= [];
+          result[currentSection][currentDate].push(parseYamlScalar(partialDateWithTitleMatch[2]));
           continue;
         }
 
@@ -722,17 +739,17 @@
         number.textContent = String(cellDate.getDate());
         cell.appendChild(number);
 
-        for (const event of dayEvents.slice(0, 2)) {
+        for (const event of dayEvents.slice(0, 3)) {
           const eventLabel = document.createElement("div");
           eventLabel.className = "event-label";
           eventLabel.textContent = event.title;
           cell.appendChild(eventLabel);
         }
 
-        if (dayEvents.length > 2) {
+        if (dayEvents.length > 3) {
           const more = document.createElement("div");
           more.className = "cell-label";
-          more.textContent = `Еще: ${dayEvents.length - 2}`;
+          more.textContent = `Еще: ${dayEvents.length - 3}`;
           cell.appendChild(more);
         }
 
