@@ -164,55 +164,71 @@
 
     .calendar-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 18px;
-    }
-
-    .calendar-grid.capped-three {
-      grid-template-columns: repeat(3, minmax(280px, 1fr));
+      --day-width: clamp(96px, 10vw, 132px);
+      --day-height: calc(var(--day-width) * 2 / 3);
+      --month-label-width: 96px;
+      width: calc(var(--month-label-width) + (var(--day-width) * 7));
+      max-width: 100%;
+      grid-template-columns: var(--month-label-width) repeat(7, var(--day-width));
+      grid-template-rows: 44px;
+      grid-auto-rows: var(--day-height);
+      background: var(--panel-strong);
+      border: 1px solid var(--border);
+      border-radius: 0;
+      overflow: hidden;
+      margin: 0 auto;
     }
 
     .events-section {
       margin-top: 24px;
     }
 
-    .month-card {
-      background: var(--panel-strong);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      overflow: hidden;
-    }
-
-    .month-header {
-      padding: 14px 16px;
-      border-bottom: 1px solid var(--border);
-      background: linear-gradient(135deg, rgba(29, 78, 216, 0.08), rgba(255, 255, 255, 0.85));
-    }
-
-    .month-title {
-      font-size: 1.15rem;
+    .month-label {
+      border-right: 1px solid rgba(31, 41, 55, 0.08);
+      border-bottom: 1px solid rgba(31, 41, 55, 0.08);
+      background: linear-gradient(90deg, #ffffff 0%, #f4f6fb 100%);
+      color: #111827;
       font-weight: 700;
+      font-size: 1.5rem;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      writing-mode: vertical-rl;
+      transform: rotate(180deg);
+      padding: 18px 10px;
     }
 
-    .weekdays,
-    .days {
-      display: grid;
-      grid-template-columns: repeat(7, minmax(0, 1fr));
+    .calendar-corner {
+      grid-column: 1;
+      grid-row: 1;
+      border-right: 1px solid rgba(31, 41, 55, 0.08);
+      border-bottom: 1px solid rgba(31, 41, 55, 0.08);
+      background: #fffdf8;
     }
 
     .weekday {
-      padding: 10px 6px;
+      min-height: 44px;
+      padding: 12px 6px;
       text-align: center;
-      font-size: 0.8rem;
+      font-size: 1rem;
+      font-weight: 700;
       color: var(--muted);
       text-transform: uppercase;
-      letter-spacing: 0.08em;
+      letter-spacing: 0;
+      border-right: 1px solid rgba(31, 41, 55, 0.08);
+      border-bottom: 1px solid rgba(31, 41, 55, 0.08);
+      background: #fffdf8;
+    }
+
+    .weekday:last-child {
+      border-right: 0;
     }
 
     .day-cell {
-      min-height: 92px;
-      border-top: 1px solid rgba(31, 41, 55, 0.08);
+      height: var(--day-height);
       border-right: 1px solid rgba(31, 41, 55, 0.08);
+      border-bottom: 1px solid rgba(31, 41, 55, 0.08);
       display: flex;
       flex-direction: column;
       gap: 6px;
@@ -222,8 +238,21 @@
       transition: transform 0.15s ease, box-shadow 0.15s ease;
     }
 
-    .day-cell:nth-child(7n) {
+    .day-cell.week-end {
       border-right: 0;
+    }
+
+    .day-cell.month-start {
+      border-left: 3px solid #000;
+      border-top: 3px solid #000;
+    }
+
+    .day-cell.month-start-tail {
+      border-top: 3px solid #000;
+    }
+
+    .day-cell.month-end-tail {
+      border-bottom: 3px solid #000;
     }
 
     .day-cell:hover {
@@ -245,6 +274,15 @@
     .day-cell.weekend-day,
     .day-cell.holiday-day {
       background: var(--holiday-day-bg);
+    }
+
+    .day-cell.today .day-number {
+      display: inline-flex;
+      width: fit-content;
+      margin: 6px 0 0 6px;
+      padding: 2px 7px;
+      border: 2px solid var(--today-ring);
+      border-radius: 999px;
     }
 
     .day-cell.selected::before {
@@ -340,10 +378,6 @@
       .layout {
         grid-template-columns: 1fr;
       }
-
-      .calendar-grid.capped-three {
-        grid-template-columns: repeat(2, minmax(280px, 1fr));
-      }
     }
 
     @media (max-width: 760px) {
@@ -363,8 +397,13 @@
         padding: 12px;
       }
 
-      .calendar-grid.capped-three {
-        grid-template-columns: 1fr;
+      .calendar-panel {
+        overflow-x: auto;
+      }
+
+      .calendar-grid {
+        --day-width: 96px;
+        max-width: none;
       }
     }
   </style>
@@ -648,121 +687,221 @@
 
     function renderCalendar() {
       elements.calendarGrid.innerHTML = "";
-      elements.calendarGrid.classList.toggle("capped-three", state.viewMonths >= 6);
       const holidays = getHolidayMap();
       const workingWeekends = getWorkingWeekendMap();
       const events = getEventsMap();
 
-      for (let offset = 0; offset < state.viewMonths; offset += 1) {
-        const monthDate = new Date(state.baseDate.getFullYear(), state.baseDate.getMonth() + offset, 1);
-        elements.calendarGrid.appendChild(createMonthCard(monthDate, holidays, workingWeekends, events));
+      const days = createContinuousDays();
+      const monthRanges = getMonthRanges(days);
+
+      for (const label of createCalendarHead()) {
+        elements.calendarGrid.appendChild(label);
+      }
+
+      for (const monthRange of monthRanges) {
+        elements.calendarGrid.appendChild(createMonthLabel(monthRange));
+      }
+
+      for (let index = 0; index < days.length; index += 1) {
+        const cell = createDayCell(days[index], index, days, holidays, workingWeekends, events);
+        const weekIndex = Math.floor(index / 7);
+        const weekdayIndex = index % 7;
+        cell.style.gridColumn = String(weekdayIndex + 2);
+        cell.style.gridRow = String(weekIndex + 2);
+        elements.calendarGrid.appendChild(cell);
       }
     }
 
-    function createMonthCard(monthDate, holidays, workingWeekends, events) {
-      const card = document.createElement("article");
-      card.className = "month-card";
+    function createCalendarHead() {
+      const cells = [];
+      const corner = document.createElement("div");
+      corner.className = "calendar-corner";
+      cells.push(corner);
 
-      const header = document.createElement("div");
-      header.className = "month-header";
-
-      const title = document.createElement("div");
-      title.className = "month-title";
-      title.textContent = `${MONTH_NAMES[monthDate.getMonth()]} ${monthDate.getFullYear()}`;
-      header.appendChild(title);
-      card.appendChild(header);
-
-      const weekdays = document.createElement("div");
-      weekdays.className = "weekdays";
-      for (const dayName of WEEKDAY_NAMES) {
+      for (const [index, dayName] of WEEKDAY_NAMES.entries()) {
         const cell = document.createElement("div");
         cell.className = "weekday";
         cell.textContent = dayName;
-        weekdays.appendChild(cell);
+        cell.style.gridColumn = String(index + 2);
+        cell.style.gridRow = "1";
+        cells.push(cell);
       }
-      card.appendChild(weekdays);
 
-      const days = document.createElement("div");
-      days.className = "days";
+      return cells;
+    }
 
-      const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
-      const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
-      const startWeekday = (monthStart.getDay() + 6) % 7;
-      const totalDays = monthEnd.getDate();
-      const leadingDays = startWeekday;
-      const totalCells = Math.ceil((leadingDays + totalDays) / 7) * 7;
-      const todayString = formatDate(new Date());
+    function createContinuousDays() {
+      const days = [];
+      const firstMonth = new Date(state.baseDate.getFullYear(), state.baseDate.getMonth(), 1);
+      const firstWeekday = (firstMonth.getDay() + 6) % 7;
 
-      for (let index = 0; index < totalCells; index += 1) {
-        const cell = document.createElement("div");
-        cell.className = "day-cell";
-        const dayNumber = index - leadingDays + 1;
-        const inCurrentMonth = dayNumber >= 1 && dayNumber <= totalDays;
+      for (let index = 0; index < firstWeekday; index += 1) {
+        days.push(null);
+      }
 
-        if (!inCurrentMonth) {
-          cell.classList.add("outside");
-          days.appendChild(cell);
+      for (let offset = 0; offset < state.viewMonths; offset += 1) {
+        const monthDate = new Date(state.baseDate.getFullYear(), state.baseDate.getMonth() + offset, 1);
+        const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+
+        for (let day = 1; day <= monthEnd.getDate(); day += 1) {
+          days.push(new Date(monthDate.getFullYear(), monthDate.getMonth(), day));
+        }
+      }
+
+      return days;
+    }
+
+    function getMonthRanges(days) {
+      const ranges = [];
+      let currentRange = null;
+
+      for (let index = 0; index < days.length; index += 1) {
+        const date = days[index];
+        if (!date) {
           continue;
         }
 
-        const cellDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), dayNumber);
-        const cellDateStr = formatDate(cellDate);
-        const isWorkingWeekend = workingWeekends.get(cellDateStr);
-        const isWeekend = (cellDate.getDay() === 0 || cellDate.getDay() === 6) && !isWorkingWeekend;
-        const holiday = holidays.get(cellDateStr);
-        const dayEvents = events.get(cellDateStr) || [];
-
-        if (isWeekend) {
-          cell.classList.add("weekend-day");
-        }
-        if (holiday) {
-          cell.classList.add("holiday-day");
-        }
-        if (dayEvents.length > 0) {
-          cell.classList.add("has-event");
-        }
-        if (cellDateStr === todayString) {
-          cell.classList.add("today");
-        }
-        if (cellDateStr === state.selectedDate) {
-          cell.classList.add("selected");
+        const key = `${date.getFullYear()}-${date.getMonth()}`;
+        if (!currentRange || currentRange.key !== key) {
+          currentRange = {
+            key,
+            name: MONTH_NAMES[date.getMonth()],
+            year: date.getFullYear(),
+            startIndex: index,
+            endIndex: index
+          };
+          ranges.push(currentRange);
+          continue;
         }
 
-        const number = document.createElement("div");
-        number.className = "day-number";
-        if (isWeekend) {
-          number.classList.add("weekend");
-        }
-        if (holiday) {
-          number.classList.add("holiday");
-        }
-        number.textContent = String(cellDate.getDate());
-        cell.appendChild(number);
-
-        for (const event of dayEvents.slice(0, 3)) {
-          const eventLabel = document.createElement("div");
-          eventLabel.className = "event-label";
-          eventLabel.textContent = event.title;
-          cell.appendChild(eventLabel);
-        }
-
-        if (dayEvents.length > 3) {
-          const more = document.createElement("div");
-          more.className = "cell-label";
-          more.textContent = `Еще: ${dayEvents.length - 3}`;
-          cell.appendChild(more);
-        }
-
-        cell.addEventListener("click", () => {
-          state.selectedDate = cellDateStr;
-          render();
-        });
-
-        days.appendChild(cell);
+        currentRange.endIndex = index;
       }
 
-      card.appendChild(days);
-      return card;
+      return ranges;
+    }
+
+    function createMonthLabel(monthRange) {
+      const label = document.createElement("div");
+      const startRow = Math.floor(monthRange.startIndex / 7) + 2;
+      const endRow = Math.floor(monthRange.endIndex / 7) + 2;
+
+      label.className = "month-label";
+      label.textContent = `${monthRange.name} ${monthRange.year}`;
+      label.style.gridColumn = "1";
+      label.style.gridRow = `${startRow} / span ${endRow - startRow + 1}`;
+
+      return label;
+    }
+
+    function createDayCell(cellDate, index, days, holidays, workingWeekends, events) {
+      const cell = document.createElement("div");
+      cell.className = "day-cell";
+      const weekdayIndex = index % 7;
+
+      if (weekdayIndex === 6) {
+        cell.classList.add("week-end");
+      }
+
+      applyMonthSeparator(cell, cellDate, index, days);
+
+      if (!cellDate) {
+        cell.classList.add("outside");
+        return cell;
+      }
+
+      const cellDateStr = formatDate(cellDate);
+      const todayString = formatDate(new Date());
+      const isWorkingWeekend = workingWeekends.get(cellDateStr);
+      const isWeekend = (cellDate.getDay() === 0 || cellDate.getDay() === 6) && !isWorkingWeekend;
+      const holiday = holidays.get(cellDateStr);
+      const dayEvents = events.get(cellDateStr) || [];
+
+      if (isWeekend) {
+        cell.classList.add("weekend-day");
+      }
+      if (holiday) {
+        cell.classList.add("holiday-day");
+      }
+      if (dayEvents.length > 0) {
+        cell.classList.add("has-event");
+      }
+      if (cellDateStr === todayString) {
+        cell.classList.add("today");
+      }
+      if (cellDateStr === state.selectedDate) {
+        cell.classList.add("selected");
+      }
+
+      const number = document.createElement("div");
+      number.className = "day-number";
+      if (isWeekend) {
+        number.classList.add("weekend");
+      }
+      if (holiday) {
+        number.classList.add("holiday");
+      }
+      number.textContent = String(cellDate.getDate());
+      cell.appendChild(number);
+
+      for (const event of dayEvents.slice(0, 3)) {
+        const eventLabel = document.createElement("div");
+        eventLabel.className = "event-label";
+        eventLabel.textContent = event.title;
+        cell.appendChild(eventLabel);
+      }
+
+      if (dayEvents.length > 3) {
+        const more = document.createElement("div");
+        more.className = "cell-label";
+        more.textContent = `Еще: ${dayEvents.length - 3}`;
+        cell.appendChild(more);
+      }
+
+      cell.addEventListener("click", () => {
+        state.selectedDate = cellDateStr;
+        render();
+      });
+
+      return cell;
+    }
+
+    function applyMonthSeparator(cell, cellDate, index, days) {
+      const transitionIndex = getMonthTransitionIndex(index, days);
+      if (transitionIndex === -1 || !cellDate) {
+        return;
+      }
+
+      if (index < transitionIndex) {
+        cell.classList.add("month-end-tail");
+      }
+
+      if (index === transitionIndex) {
+        cell.classList.add("month-start");
+      }
+
+      if (index > transitionIndex) {
+        cell.classList.add("month-start-tail");
+      }
+    }
+
+    function getMonthTransitionIndex(index, days) {
+      const weekStartIndex = Math.floor(index / 7) * 7;
+      const weekEndIndex = Math.min(weekStartIndex + 6, days.length - 1);
+
+      for (let currentIndex = weekStartIndex; currentIndex <= weekEndIndex; currentIndex += 1) {
+        const date = days[currentIndex];
+        const previousDate = days[currentIndex - 1];
+
+        if (!date || date.getDate() !== 1 || !previousDate) {
+          continue;
+        }
+
+        if (previousDate.getMonth() !== date.getMonth() || previousDate.getFullYear() !== date.getFullYear()) {
+          return currentIndex;
+        }
+      }
+
+      return -1;
     }
 
     function renderLists() {
