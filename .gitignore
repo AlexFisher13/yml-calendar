@@ -1,0 +1,20 @@
+# IDE
+.idea/
+*.iml
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Backend
+backend/target/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+
+# Operating systems
+.DS_Store
+Thumbs.db
