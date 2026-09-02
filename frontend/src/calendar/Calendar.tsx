@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { getCalendarData } from '../api/calendar'
 import {
   createContinuousDays,
+  createMonthGridDays,
   EMPTY_CALENDAR_DATA,
   formatDate,
   getMonthRanges,
@@ -14,20 +15,22 @@ import {
   WEEKDAY_NAMES,
   type CalendarData,
   type MonthRange,
+  type CalendarEvent,
+  type CalendarHoliday,
 } from './model'
 import { CalendarForms } from './CalendarForms'
 
 const VIEW_MONTH_OPTIONS = [
-  { value: 1, label: 'Месяц' },
   { value: 3, label: '3 месяца' },
-  { value: 6, label: 'Полгода' },
   { value: 12, label: 'Год' },
 ] as const
+
+type CalendarView = (typeof VIEW_MONTH_OPTIONS)[number]['value']
 
 export function Calendar() {
   const today = useMemo(() => new Date(), [])
   const [data, setData] = useState<CalendarData>(EMPTY_CALENDAR_DATA)
-  const [viewMonths, setViewMonths] = useState(3)
+  const [viewMonths, setViewMonths] = useState<CalendarView>(3)
   const [baseDate, setBaseDate] = useState(() => startOfMonth(today))
   const [selectedDate, setSelectedDate] = useState(() => formatDate(today))
   const [dataVersion, setDataVersion] = useState(0)
@@ -45,21 +48,29 @@ export function Calendar() {
     () => groupHolidaysByDate(data.vacations),
     [data.vacations],
   )
-  const workingWeekends = useMemo(
-    () => new Set(data.workingWeekends),
-    [data.workingWeekends],
+  const workingDaysByDate = useMemo(
+    () => groupHolidaysByDate(data.workingDays),
+    [data.workingDays],
   )
   const eventsByDate = useMemo(() => groupEventsByDate(data.events), [data.events])
 
-  const navigationStep = viewMonths === 3 ? 1 : viewMonths
+  const isYearView = viewMonths === 12
+  const navigationStep = isYearView ? 12 : 1
   const dateRange = useMemo(() => {
+    if (isYearView) {
+      const year = baseDate.getFullYear()
+      return {
+        from: formatDate(new Date(year, 0, 1)),
+        to: formatDate(new Date(year, 11, 31)),
+      }
+    }
     const visibleDays = days.filter((date): date is Date => date !== null)
     const firstDay = visibleDays[0]
     const lastDay = visibleDays.at(-1)
     return firstDay && lastDay
       ? { from: formatDate(firstDay), to: formatDate(lastDay) }
       : undefined
-  }, [days])
+  }, [baseDate, days, isYearView])
 
   useEffect(() => {
     if (!dateRange) {
@@ -81,6 +92,9 @@ export function Calendar() {
   }, [dateRange, dataVersion])
 
   const visiblePeriod = useMemo(() => {
+    if (isYearView) {
+      return String(baseDate.getFullYear())
+    }
     const visibleDays = days.filter((date): date is Date => date !== null)
     const firstDay = visibleDays[0]
     const lastDay = visibleDays.at(-1)
@@ -100,7 +114,7 @@ export function Calendar() {
     }
 
     return `${firstMonth} ${firstDay.getFullYear()} — ${lastMonth} ${lastDay.getFullYear()}`
-  }, [days])
+  }, [baseDate, days, isYearView])
 
   function shiftRange(direction: number) {
     setBaseDate(
@@ -158,7 +172,13 @@ export function Calendar() {
             <select
               id="view-mode"
               value={viewMonths}
-              onChange={(event) => setViewMonths(Number(event.target.value))}
+              onChange={(event) => {
+                const nextView = Number(event.target.value) as CalendarView
+                setViewMonths(nextView)
+                if (nextView === 12) {
+                  setBaseDate((current) => new Date(current.getFullYear(), 0, 1))
+                }
+              }}
             >
               {VIEW_MONTH_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -172,8 +192,27 @@ export function Calendar() {
 
       </div>
 
-      <div className="calendar-content">
+      <div
+        className={[
+          'calendar-content',
+          isYearView && 'calendar-content--year',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+      >
         <div className="calendar-scroll">
+          {isYearView ? (
+            <YearCalendar
+              year={baseDate.getFullYear()}
+              today={today}
+              selectedDate={selectedDate}
+              holidaysByDate={holidaysByDate}
+              vacationsByDate={vacationsByDate}
+              workingDaysByDate={workingDaysByDate}
+              eventsByDate={eventsByDate}
+              onSelectDate={setSelectedDate}
+            />
+          ) : (
           <div className="calendar-grid" aria-label="Календарь">
           <div className="calendar-corner" />
           {WEEKDAY_NAMES.map((weekday, index) => (
@@ -205,7 +244,7 @@ export function Calendar() {
             }
 
             const dateString = formatDate(date)
-            const isWorkingWeekend = workingWeekends.has(dateString)
+            const isWorkingWeekend = workingDaysByDate.has(dateString)
             const isWeekend =
               (date.getDay() === 0 || date.getDay() === 6) && !isWorkingWeekend
             const holiday = holidaysByDate.get(dateString)
@@ -276,9 +315,10 @@ export function Calendar() {
             )
           })}
           </div>
+          )}
         </div>
 
-        <CalendarForms
+        {!isYearView && <CalendarForms
           key={selectedDate}
           initialDate={selectedDate}
           selectedEvents={eventsByDate.get(selectedDate) ?? []}
@@ -288,10 +328,90 @@ export function Calendar() {
           selectedVacations={data.vacations.filter((vacation) =>
             isDateInPeriod(selectedDate, vacation),
           )}
+          selectedWorkingDays={data.workingDays.filter((workingDay) =>
+            isDateInPeriod(selectedDate, workingDay),
+          )}
           onSaved={() => setDataVersion((version) => version + 1)}
-        />
+        />}
       </div>
     </section>
+  )
+}
+
+function YearCalendar({
+  year,
+  today,
+  selectedDate,
+  holidaysByDate,
+  vacationsByDate,
+  workingDaysByDate,
+  eventsByDate,
+  onSelectDate,
+}: {
+  year: number
+  today: Date
+  selectedDate: string
+  holidaysByDate: Map<string, CalendarHoliday>
+  vacationsByDate: Map<string, CalendarHoliday>
+  workingDaysByDate: Map<string, CalendarHoliday>
+  eventsByDate: Map<string, CalendarEvent[]>
+  onSelectDate: (date: string) => void
+}) {
+  const todayString = formatDate(today)
+
+  return (
+    <div className="year-calendar" aria-label={`Календарь на ${year} год`}>
+      {Array.from({ length: 12 }, (_, month) => {
+        const monthDate = new Date(year, month, 1)
+        const monthDays = createMonthGridDays(monthDate)
+
+        return (
+          <section className="year-month" key={month}>
+            <h3>{new Intl.DateTimeFormat('ru-RU', { month: 'long' }).format(monthDate)}</h3>
+            <div className="year-month__weekdays" aria-hidden="true">
+              {WEEKDAY_NAMES.map((weekday) => <span key={weekday}>{weekday}</span>)}
+            </div>
+            <div className="year-month__days">
+              {monthDays.map((date, index) => {
+                if (!date) {
+                  return <span className="year-day year-day--empty" key={`empty-${index}`} />
+                }
+
+                const dateString = formatDate(date)
+                const isWorkingWeekend = workingDaysByDate.has(dateString)
+                const isWeekend =
+                  (date.getDay() === 0 || date.getDay() === 6) &&
+                  !isWorkingWeekend
+                const isHoliday = holidaysByDate.has(dateString)
+                const isVacation = vacationsByDate.has(dateString)
+                const hasEvents = (eventsByDate.get(dateString)?.length ?? 0) > 0
+                const className = [
+                  'year-day',
+                  (isWeekend || isHoliday) && 'year-day--holiday',
+                  isVacation && 'year-day--vacation',
+                  dateString === todayString && 'year-day--today',
+                  dateString === selectedDate && 'year-day--selected',
+                ].filter(Boolean).join(' ')
+
+                return (
+                  <button
+                    type="button"
+                    className={className}
+                    key={dateString}
+                    aria-label={dateString}
+                    aria-pressed={dateString === selectedDate}
+                    onClick={() => onSelectDate(dateString)}
+                  >
+                    <span>{date.getDate()}</span>
+                    {hasEvents && <i className="year-day__event" aria-label="Есть события" />}
+                  </button>
+                )
+              })}
+            </div>
+          </section>
+        )
+      })}
+    </div>
   )
 }
 

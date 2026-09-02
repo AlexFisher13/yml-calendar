@@ -36,8 +36,13 @@ func (store *fakeStore) CreateHoliday(_ context.Context, holiday calendarstore.H
 func (store *fakeStore) CreateVacation(_ context.Context, vacation calendarstore.Holiday) (calendarstore.Holiday, error) {
 	return vacation, nil
 }
-func (store *fakeStore) DeleteHoliday(context.Context, string) error  { return nil }
-func (store *fakeStore) DeleteVacation(context.Context, string) error { return nil }
+func (store *fakeStore) CreateWorkingDay(_ context.Context, workingDay calendarstore.Holiday) (calendarstore.Holiday, error) {
+	workingDay.Title = "Рабочий день"
+	return workingDay, nil
+}
+func (store *fakeStore) DeleteHoliday(context.Context, string) error    { return nil }
+func (store *fakeStore) DeleteVacation(context.Context, string) error   { return nil }
+func (store *fakeStore) DeleteWorkingDay(context.Context, string) error { return nil }
 
 func TestStatus(t *testing.T) {
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/system/status", nil)
@@ -119,5 +124,14 @@ func TestDeleteHoliday(t *testing.T) {
 	New(&fakeStore{}).ServeHTTP(response, request)
 	if response.Code != http.StatusNoContent {
 		t.Fatalf("ожидался статус 204, получен %d", response.Code)
+	}
+}
+
+func TestCreateWorkingDayPeriod(t *testing.T) {
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/working-days", strings.NewReader(`{"date":"2026-09-05","endDate":"2026-09-06"}`))
+	response := httptest.NewRecorder()
+	New(&fakeStore{}).ServeHTTP(response, request)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("ожидался статус 201, получен %d: %s", response.Code, response.Body.String())
 	}
 }

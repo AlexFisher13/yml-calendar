@@ -4,6 +4,7 @@ import {
   createCalendarEvent,
   createCalendarHoliday,
   createCalendarVacation,
+  createCalendarWorkingDay,
   deleteCalendarEntry,
 } from '../api/calendar'
 import type { CalendarEvent, CalendarHoliday } from './model'
@@ -19,12 +20,14 @@ export function CalendarForms({
   selectedEvents,
   selectedHolidays,
   selectedVacations,
+  selectedWorkingDays,
   onSaved,
 }: {
   initialDate: string
   selectedEvents: CalendarEvent[]
   selectedHolidays: CalendarHoliday[]
   selectedVacations: CalendarHoliday[]
+  selectedWorkingDays: CalendarHoliday[]
   onSaved: () => void
 }) {
   return (
@@ -34,6 +37,7 @@ export function CalendarForms({
         events={selectedEvents}
         holidays={selectedHolidays}
         vacations={selectedVacations}
+        workingDays={selectedWorkingDays}
         onDeleted={onSaved}
       />
       <PeriodForm
@@ -63,13 +67,14 @@ export function CalendarForms({
         onSubmit={createCalendarHoliday}
         onSaved={onSaved}
       />
+      <WorkingDayForm initialDate={initialDate} onSaved={onSaved} />
     </aside>
   )
 }
 
 type DayEntry = {
   id: string
-  kind: 'event' | 'holiday' | 'vacation'
+  kind: 'event' | 'holiday' | 'vacation' | 'working-day'
   title: string
   date: string
   endDate?: string
@@ -80,12 +85,14 @@ function DayEntries({
   events,
   holidays,
   vacations,
+  workingDays,
   onDeleted,
 }: {
   date: string
   events: CalendarEvent[]
   holidays: CalendarHoliday[]
   vacations: CalendarHoliday[]
+  workingDays: CalendarHoliday[]
   onDeleted: () => void
 }) {
   const [confirmId, setConfirmId] = useState<string>()
@@ -95,6 +102,10 @@ function DayEntries({
     ...events.map((entry) => ({ ...entry, kind: 'event' as const })),
     ...holidays.map((entry) => ({ ...entry, kind: 'holiday' as const })),
     ...vacations.map((entry) => ({ ...entry, kind: 'vacation' as const })),
+    ...workingDays.map((entry) => ({
+      ...entry,
+      kind: 'working-day' as const,
+    })),
   ]
 
   async function remove(entry: DayEntry) {
@@ -272,6 +283,73 @@ function PeriodForm({
 
       <button className="button button--primary entry-form__submit" disabled={isSubmitting}>
         {isSubmitting ? 'Сохраняем…' : submitLabel}
+      </button>
+      <div className="entry-form__message" role="status">{message}</div>
+    </form>
+  )
+}
+
+function WorkingDayForm({
+  initialDate,
+  onSaved,
+}: {
+  initialDate: string
+  onSaved: () => void
+}) {
+  const [date, setDate] = useState(initialDate)
+  const [endDate, setEndDate] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [message, setMessage] = useState('')
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setIsSubmitting(true)
+    setMessage('')
+    try {
+      await createCalendarWorkingDay({
+        date,
+        ...(endDate ? { endDate } : {}),
+      })
+      setEndDate('')
+      setMessage('Сохранено')
+      onSaved()
+    } catch {
+      setMessage('Не удалось сохранить')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <form className="entry-form entry-form--working-day" onSubmit={handleSubmit}>
+      <div className="entry-form__heading">
+        <span aria-hidden="true" />
+        <h3>Рабочий выходной</h3>
+      </div>
+
+      <div className="date-fields">
+        <label>
+          <span>Дата</span>
+          <input
+            required
+            type="date"
+            value={date}
+            onChange={(event) => setDate(event.target.value)}
+          />
+        </label>
+        <label>
+          <span>По дату <em>необязательно</em></span>
+          <input
+            type="date"
+            min={date}
+            value={endDate}
+            onChange={(event) => setEndDate(event.target.value)}
+          />
+        </label>
+      </div>
+
+      <button className="button button--primary entry-form__submit" disabled={isSubmitting}>
+        {isSubmitting ? 'Сохраняем…' : 'Сделать рабочим'}
       </button>
       <div className="entry-form__message" role="status">{message}</div>
     </form>

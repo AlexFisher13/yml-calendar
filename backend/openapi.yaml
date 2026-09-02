@@ -94,6 +94,32 @@ paths:
       responses:
         "204": { description: Отпуск или каникулы удалены }
         "404": { description: Период не найден }
+  /working-days:
+    post:
+      operationId: createWorkingDay
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DatePeriodInput" }
+      responses:
+        "201":
+          description: Выходной день отмечен рабочим
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Holiday" }
+        "400": { description: Некорректный период }
+  /working-days/{workingDayId}:
+    parameters:
+      - name: workingDayId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      operationId: deleteWorkingDay
+      responses:
+        "204": { description: Отметка рабочего дня удалена }
+        "404": { description: Отметка не найдена }
   /events/{eventId}:
     parameters:
       - name: eventId
@@ -162,6 +188,12 @@ components:
         date: { type: string, format: date }
         endDate: { type: string, format: date }
         title: { type: string, minLength: 1, maxLength: 200 }
+    DatePeriodInput:
+      type: object
+      required: [date]
+      properties:
+        date: { type: string, format: date }
+        endDate: { type: string, format: date }
     Holiday:
       allOf:
         - { $ref: "#/components/schemas/HolidayInput" }
@@ -171,7 +203,7 @@ components:
             id: { type: string, format: uuid }
     CalendarData:
       type: object
-      required: [holidays, vacations, workingWeekends, events]
+      required: [holidays, vacations, workingDays, events]
       properties:
         holidays:
           type: array
@@ -179,9 +211,9 @@ components:
         vacations:
           type: array
           items: { $ref: "#/components/schemas/Holiday" }
-        workingWeekends:
+        workingDays:
           type: array
-          items: { type: string, format: date }
+          items: { $ref: "#/components/schemas/Holiday" }
         events:
           type: array
           items: { $ref: "#/components/schemas/Event" }
