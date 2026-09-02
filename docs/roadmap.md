@@ -12,10 +12,10 @@
 
 ## Этап 1 — локальный MVP
 
-- Создать Spring Boot backend.
+- Создать компактный Go backend.
 - Создать React frontend.
 - Поднять PostgreSQL через Docker Compose.
-- Добавить Liquibase и первую схему данных.
+- Добавить встроенные SQL-миграции и первую схему данных.
 - Реализовать создание, чтение, изменение и удаление календарей и событий.
 - Перенести многомесячное представление из прототипа.
 - Реализовать импорт текущего YAML.
@@ -30,7 +30,7 @@
 ## Этап 3 — первый production
 
 - Подготовить VPS.
-- Настроить Docker Compose, Caddy и HTTPS.
+- Настроить systemd, Caddy и HTTPS на production VPS.
 - Публиковать образы в GitHub Container Registry.
 - Настроить CI и подтверждаемый CD через GitHub Environment.
 - Настроить backup, restore, healthcheck и rollback.

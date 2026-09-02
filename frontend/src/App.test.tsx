@@ -21,10 +21,12 @@ describe('App', () => {
       screen.getByRole('heading', { name: 'Bro Calendar' }),
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Сегодня' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Открыть YML' })).toBeInTheDocument()
     expect(screen.getByLabelText('Диапазон календаря')).toHaveValue('3')
-    expect(screen.getByText('Событий пока нет. Загрузите существующий YAML-файл.'))
-      .toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Открыть YML' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'События' })).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Новое событие' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Праздничный день' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Отпуск или каникулы' })).toBeInTheDocument()
   })
 
   it('changes the visible calendar range', () => {

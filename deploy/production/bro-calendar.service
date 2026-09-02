@@ -1,0 +1,27 @@
+[Unit]
+Description=Bro Calendar API
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bro-calendar
+Group=bro-calendar
+EnvironmentFile=/etc/bro-calendar/backend.env
+ExecStart=/opt/bro-calendar/current/calendar serve
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=15
+MemoryMax=128M
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

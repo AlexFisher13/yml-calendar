@@ -1,8 +1,0 @@
-databaseChangeLog:
-  - changeSet:
-      id: 0001-enable-uuid-extension
-      author: bro-calendar
-      changes:
-        - sql:
-            dbms: postgresql
-            sql: CREATE EXTENSION IF NOT EXISTS pgcrypto

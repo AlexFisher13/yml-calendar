@@ -4,9 +4,9 @@
 
 Проект постепенно переносится из автономного YAML-прототипа в приложение:
 
-- Java 21 и Spring Boot;
+- Go;
 - React и TypeScript;
-- PostgreSQL и Liquibase;
+- PostgreSQL и встроенные SQL-миграции;
 - PWA, а в будущем — SwiftUI-клиент.
 
 ## Структура
@@ -46,21 +46,20 @@ docker compose -f deploy/compose.yml down
 Команда `down` не удаляет PostgreSQL volume. Не используй `down -v`, если нужно
 сохранить данные.
 
-## Запуск без Docker
+## Запуск frontend без Docker
 
-Для разработки компоненты также можно запускать отдельно:
+Для работы с frontend без локального Go можно поднять PostgreSQL и backend в
+Docker, а Vite запустить на хосте:
 
 ```bash
-docker compose -f deploy/compose.yml up -d postgres
+docker compose -f deploy/compose.yml up -d postgres migrate backend
 
-cd backend
-./mvnw spring-boot:run
-
-cd ../frontend
+cd frontend
 nvm use
 npm install
 npm run dev
 ```
 
 При таком запуске frontend доступен на `http://localhost:5173`. Для него нужен
-Node.js 24 или новее.
+Node.js 24 или новее. Backend использует Go 1.24 или новее и применяет
+встроенные SQL-миграции отдельной командой `calendar migrate`.
