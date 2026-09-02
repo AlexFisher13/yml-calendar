@@ -16,12 +16,24 @@ export const MONTH_NAMES = [
 export const WEEKDAY_NAMES = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'] as const
 
 export type CalendarEvent = {
+  id: string
   date: string
+  endDate?: string
+  title: string
+  timeZone: string
+  rrule?: string
+}
+
+export type CalendarHoliday = {
+  id: string
+  date: string
+  endDate?: string
   title: string
 }
 
 export type CalendarData = {
-  holidays: string[]
+  holidays: CalendarHoliday[]
+  vacations: CalendarHoliday[]
   workingWeekends: string[]
   events: CalendarEvent[]
 }
@@ -36,6 +48,7 @@ export type MonthRange = {
 
 export const EMPTY_CALENDAR_DATA: CalendarData = {
   holidays: [],
+  vacations: [],
   workingWeekends: [],
   events: [],
 }
@@ -143,10 +156,49 @@ export function groupEventsByDate(events: CalendarEvent[]): Map<string, Calendar
   const grouped = new Map<string, CalendarEvent[]>()
 
   events.forEach((event) => {
-    const dateEvents = grouped.get(event.date) ?? []
-    dateEvents.push(event)
-    grouped.set(event.date, dateEvents)
+    forEachDateInRange(event.date, event.endDate, (date) => {
+      const dateEvents = grouped.get(date) ?? []
+      dateEvents.push(event)
+      grouped.set(date, dateEvents)
+    })
   })
 
   return grouped
+}
+
+export function groupHolidaysByDate(
+  holidays: CalendarHoliday[],
+): Map<string, CalendarHoliday> {
+  const grouped = new Map<string, CalendarHoliday>()
+  holidays.forEach((holiday) => {
+    forEachDateInRange(holiday.date, holiday.endDate, (date) => {
+      grouped.set(date, holiday)
+    })
+  })
+  return grouped
+}
+
+function forEachDateInRange(
+  startValue: string,
+  endValue: string | undefined,
+  callback: (date: string) => void,
+) {
+  const [startYear, startMonth, startDay] = startValue.split('-').map(Number)
+  const current = new Date(startYear, startMonth - 1, startDay)
+  const [endYear, endMonth, endDay] = (endValue ?? startValue)
+    .split('-')
+    .map(Number)
+  const end = new Date(endYear, endMonth - 1, endDay)
+
+  while (current <= end) {
+    callback(formatDate(current))
+    current.setDate(current.getDate() + 1)
+  }
+}
+
+export function isDateInPeriod(
+  date: string,
+  period: { date: string; endDate?: string },
+): boolean {
+  return date >= period.date && date <= (period.endDate ?? period.date)
 }

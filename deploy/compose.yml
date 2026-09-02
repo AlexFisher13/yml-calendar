@@ -19,26 +19,38 @@ services:
       start_period: 5s
     restart: unless-stopped
 
+  migrate:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    image: bro-calendar/backend:local
+    command: ["migrate"]
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-bro_calendar}:${POSTGRES_PASSWORD:-bro_calendar}@postgres:5432/${POSTGRES_DB:-bro_calendar}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   backend:
     build:
       context: ../backend
       dockerfile: Dockerfile
     image: bro-calendar/backend:local
     environment:
-      DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-bro_calendar}
-      DATABASE_USERNAME: ${POSTGRES_USER:-bro_calendar}
-      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-bro_calendar}
+      DATABASE_URL: postgres://${POSTGRES_USER:-bro_calendar}:${POSTGRES_PASSWORD:-bro_calendar}@postgres:5432/${POSTGRES_DB:-bro_calendar}
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test:
         [
           "CMD",
-          "curl",
-          "--fail",
-          "--silent",
-          "http://localhost:8080/actuator/health/readiness",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:8080/healthz",
         ]
       interval: 10s
       timeout: 3s

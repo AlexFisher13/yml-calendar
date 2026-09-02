@@ -3,7 +3,7 @@
 Docker Compose запускает всё приложение:
 
 - PostgreSQL;
-- Spring Boot backend;
+- Go backend;
 - React frontend в Nginx.
 
 Из корня репозитория:
@@ -13,6 +13,9 @@ docker compose -f deploy/compose.yml up --build
 ```
 
 После запуска приложение доступно на `http://localhost:8080`.
+
+Перед запуском backend одноразовый сервис `migrate` применяет встроенные
+SQL-миграции. Повторный запуск безопасно пропускает уже применённые версии.
 
 Для фонового запуска:
 

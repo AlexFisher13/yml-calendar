@@ -1,0 +1,187 @@
+openapi: 3.1.0
+info:
+  title: Bro Calendar API
+  version: 0.1.0
+servers:
+  - url: /api/v1
+paths:
+  /system/status:
+    get:
+      operationId: getSystemStatus
+      responses:
+        "200":
+          description: Backend работает
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SystemStatus" }
+  /calendar:
+    get:
+      operationId: getCalendar
+      parameters:
+        - { $ref: "#/components/parameters/From" }
+        - { $ref: "#/components/parameters/To" }
+      responses:
+        "200":
+          description: Данные календаря за диапазон дат
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CalendarData" }
+        "400": { description: Некорректный диапазон дат }
+  /events:
+    post:
+      operationId: createEvent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EventInput" }
+      responses:
+        "201":
+          description: Событие создано
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Event" }
+        "400": { description: Некорректное событие }
+  /holidays:
+    post:
+      operationId: createHoliday
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/HolidayInput" }
+      responses:
+        "201":
+          description: Праздничный период сохранён
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Holiday" }
+        "400": { description: Некорректный праздничный период }
+  /vacations:
+    post:
+      operationId: createVacation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/HolidayInput" }
+      responses:
+        "201":
+          description: Отпуск или каникулы сохранены
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Holiday" }
+        "400": { description: Некорректный период }
+  /holidays/{holidayId}:
+    parameters:
+      - name: holidayId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      operationId: deleteHoliday
+      responses:
+        "204": { description: Праздничный период удалён }
+        "404": { description: Праздничный период не найден }
+  /vacations/{vacationId}:
+    parameters:
+      - name: vacationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      operationId: deleteVacation
+      responses:
+        "204": { description: Отпуск или каникулы удалены }
+        "404": { description: Период не найден }
+  /events/{eventId}:
+    parameters:
+      - name: eventId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      operationId: updateEvent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EventInput" }
+      responses:
+        "200":
+          description: Событие обновлено
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Event" }
+        "404": { description: Событие не найдено }
+    delete:
+      operationId: deleteEvent
+      responses:
+        "204": { description: Событие удалено }
+        "404": { description: Событие не найдено }
+components:
+  parameters:
+    From:
+      name: from
+      in: query
+      required: true
+      schema: { type: string, format: date }
+    To:
+      name: to
+      in: query
+      required: true
+      schema: { type: string, format: date }
+  schemas:
+    SystemStatus:
+      type: object
+      required: [application, status, timestamp]
+      properties:
+        application: { type: string }
+        status: { type: string }
+        timestamp: { type: string, format: date-time }
+    EventInput:
+      type: object
+      required: [date, title, timeZone]
+      properties:
+        date: { type: string, format: date }
+        endDate: { type: string, format: date }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        timeZone: { type: string, example: Europe/Moscow }
+        rrule: { type: string }
+    Event:
+      allOf:
+        - { $ref: "#/components/schemas/EventInput" }
+        - type: object
+          required: [id]
+          properties:
+            id: { type: string, format: uuid }
+    HolidayInput:
+      type: object
+      required: [date, title]
+      properties:
+        date: { type: string, format: date }
+        endDate: { type: string, format: date }
+        title: { type: string, minLength: 1, maxLength: 200 }
+    Holiday:
+      allOf:
+        - { $ref: "#/components/schemas/HolidayInput" }
+        - type: object
+          required: [id]
+          properties:
+            id: { type: string, format: uuid }
+    CalendarData:
+      type: object
+      required: [holidays, vacations, workingWeekends, events]
+      properties:
+        holidays:
+          type: array
+          items: { $ref: "#/components/schemas/Holiday" }
+        vacations:
+          type: array
+          items: { $ref: "#/components/schemas/Holiday" }
+        workingWeekends:
+          type: array
+          items: { type: string, format: date }
+        events:
+          type: array
+          items: { $ref: "#/components/schemas/Event" }

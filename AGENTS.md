@@ -9,10 +9,11 @@
 ## Architecture
 
 - Use a modular monolith. Do not introduce microservices.
-- Backend: Java 21 and Spring Boot.
+- Backend: Go 1.24 or newer, standard `net/http` and `pgx`.
 - Frontend: React and TypeScript.
 - Database: PostgreSQL.
-- Apply database schema changes only through Liquibase migrations.
+- Apply database schema changes only through ordered SQL migrations embedded in
+  the backend migration command.
 - Expose backend functionality through a documented REST API.
 - Keep the API suitable for both the web client and a future SwiftUI client.
 - Store instants in UTC and preserve the user's IANA time zone separately.
@@ -21,7 +22,7 @@
 
 ## Repository layout
 
-- `backend/` contains the Spring Boot application.
+- `backend/` contains the Go application.
 - `frontend/` contains the React web application and PWA.
 - `deploy/` contains local and production deployment configuration.
 - `docs/` contains product and engineering documentation.
@@ -63,6 +64,6 @@ If a check does not exist yet or cannot be run, state that explicitly.
 - Never print tokens, passwords, or private keys.
 - Never delete or rewrite production data.
 - Never remove a production volume as part of deployment.
-- Use immutable container image tags based on the Git commit SHA.
+- Use immutable release artifacts identified by the Git commit SHA.
 - Back up PostgreSQL and test restoration before the application is considered production-ready.
 - Production migrations must be reviewed and backwards compatible with the previously deployed application version.

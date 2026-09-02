@@ -1,18 +1,21 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
+import { getCalendarData } from '../api/calendar'
 import {
   createContinuousDays,
   EMPTY_CALENDAR_DATA,
   formatDate,
   getMonthRanges,
   getMonthTransitionIndex,
+  groupHolidaysByDate,
   groupEventsByDate,
+  isDateInPeriod,
   startOfMonth,
   WEEKDAY_NAMES,
   type CalendarData,
   type MonthRange,
 } from './model'
-import { parseCalendarYaml } from './yaml'
+import { CalendarForms } from './CalendarForms'
 
 const VIEW_MONTH_OPTIONS = [
   { value: 1, label: 'Месяц' },
@@ -27,17 +30,21 @@ export function Calendar() {
   const [viewMonths, setViewMonths] = useState(3)
   const [baseDate, setBaseDate] = useState(() => startOfMonth(today))
   const [selectedDate, setSelectedDate] = useState(() => formatDate(today))
-  const [status, setStatus] = useState(
-    'Откройте YML, чтобы загрузить праздники и события.',
-  )
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [dataVersion, setDataVersion] = useState(0)
 
   const days = useMemo(
     () => createContinuousDays(baseDate, viewMonths),
     [baseDate, viewMonths],
   )
   const monthRanges = useMemo(() => getMonthRanges(days), [days])
-  const holidays = useMemo(() => new Set(data.holidays), [data.holidays])
+  const holidaysByDate = useMemo(
+    () => groupHolidaysByDate(data.holidays),
+    [data.holidays],
+  )
+  const vacationsByDate = useMemo(
+    () => groupHolidaysByDate(data.vacations),
+    [data.vacations],
+  )
   const workingWeekends = useMemo(
     () => new Set(data.workingWeekends),
     [data.workingWeekends],
@@ -45,6 +52,55 @@ export function Calendar() {
   const eventsByDate = useMemo(() => groupEventsByDate(data.events), [data.events])
 
   const navigationStep = viewMonths === 3 ? 1 : viewMonths
+  const dateRange = useMemo(() => {
+    const visibleDays = days.filter((date): date is Date => date !== null)
+    const firstDay = visibleDays[0]
+    const lastDay = visibleDays.at(-1)
+    return firstDay && lastDay
+      ? { from: formatDate(firstDay), to: formatDate(lastDay) }
+      : undefined
+  }, [days])
+
+  useEffect(() => {
+    if (!dateRange) {
+      return
+    }
+
+    const controller = new AbortController()
+    getCalendarData(dateRange.from, dateRange.to, controller.signal)
+      .then((calendarData) => {
+        setData(calendarData)
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          return
+        }
+      })
+
+    return () => controller.abort()
+  }, [dateRange, dataVersion])
+
+  const visiblePeriod = useMemo(() => {
+    const visibleDays = days.filter((date): date is Date => date !== null)
+    const firstDay = visibleDays[0]
+    const lastDay = visibleDays.at(-1)
+
+    if (!firstDay || !lastDay) {
+      return ''
+    }
+
+    const monthFormatter = new Intl.DateTimeFormat('ru-RU', { month: 'long' })
+    const firstMonth = monthFormatter.format(firstDay)
+    const lastMonth = monthFormatter.format(lastDay)
+
+    if (firstDay.getFullYear() === lastDay.getFullYear()) {
+      const months =
+        firstMonth === lastMonth ? firstMonth : `${firstMonth} — ${lastMonth}`
+      return `${months} ${lastDay.getFullYear()}`
+    }
+
+    return `${firstMonth} ${firstDay.getFullYear()} — ${lastMonth} ${lastDay.getFullYear()}`
+  }, [days])
 
   function shiftRange(direction: number) {
     setBaseDate(
@@ -57,97 +113,68 @@ export function Calendar() {
     )
   }
 
-  async function loadYaml(file: File | undefined) {
-    if (!file) {
-      return
-    }
-
-    try {
-      const yamlText = await file.text()
-      setData(parseCalendarYaml(yamlText))
-      setStatus(`Загружено: ${file.name}`)
-    } catch (error) {
-      console.error(error)
-      setStatus('Не удалось прочитать выбранный YML.')
-    }
-  }
-
   return (
     <section className="calendar-panel">
       <div className="toolbar">
-        <div className="toolbar-group">
-          <button
-            type="button"
-            className="button button--secondary button--icon"
-            aria-label="Предыдущий период"
-            onClick={() => shiftRange(-1)}
-          >
-            ←
-          </button>
-          <button
-            type="button"
-            className="button button--secondary"
-            onClick={() => {
-              setBaseDate(startOfMonth(today))
-              setSelectedDate(formatDate(today))
-            }}
-          >
-            Сегодня
-          </button>
-          <button
-            type="button"
-            className="button button--secondary button--icon"
-            aria-label="Следующий период"
-            onClick={() => shiftRange(1)}
-          >
-            →
-          </button>
+        <div className="period-heading">
+          <p>Текущий период</p>
+          <h2>{visiblePeriod}</h2>
         </div>
 
-        <div className="toolbar-group">
-          <label className="sr-only" htmlFor="view-mode">
-            Диапазон календаря
-          </label>
-          <select
-            id="view-mode"
-            value={viewMonths}
-            onChange={(event) => setViewMonths(Number(event.target.value))}
-          >
-            {VIEW_MONTH_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+        <div className="toolbar-actions">
+          <div className="toolbar-group navigation-controls">
+            <button
+              type="button"
+              className="button button--secondary button--icon"
+              aria-label="Предыдущий период"
+              onClick={() => shiftRange(-1)}
+            >
+              <ArrowIcon direction="left" />
+            </button>
+            <button
+              type="button"
+              className="button button--secondary"
+              onClick={() => {
+                setBaseDate(startOfMonth(today))
+                setSelectedDate(formatDate(today))
+              }}
+            >
+              Сегодня
+            </button>
+            <button
+              type="button"
+              className="button button--secondary button--icon"
+              aria-label="Следующий период"
+              onClick={() => shiftRange(1)}
+            >
+              <ArrowIcon direction="right" />
+            </button>
+          </div>
+
+          <div className="toolbar-group">
+            <label className="sr-only" htmlFor="view-mode">
+              Диапазон календаря
+            </label>
+            <select
+              id="view-mode"
+              value={viewMonths}
+              onChange={(event) => setViewMonths(Number(event.target.value))}
+            >
+              {VIEW_MONTH_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
         </div>
 
-        <div className="toolbar-group">
-          <button
-            type="button"
-            className="button button--secondary"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            Открыть YML
-          </button>
-          <input
-            ref={fileInputRef}
-            className="hidden-input"
-            type="file"
-            accept=".yml,.yaml,text/yaml,application/x-yaml"
-            onChange={(event) => {
-              void loadYaml(event.target.files?.[0])
-              event.target.value = ''
-            }}
-          />
-        </div>
-
-        <div className="calendar-status" role="status">
-          {status}
-        </div>
       </div>
 
-      <div className="calendar-scroll">
-        <div className="calendar-grid" aria-label="Календарь">
+      <div className="calendar-content">
+        <div className="calendar-scroll">
+          <div className="calendar-grid" aria-label="Календарь">
           <div className="calendar-corner" />
           {WEEKDAY_NAMES.map((weekday, index) => (
             <div
@@ -181,7 +208,9 @@ export function Calendar() {
             const isWorkingWeekend = workingWeekends.has(dateString)
             const isWeekend =
               (date.getDay() === 0 || date.getDay() === 6) && !isWorkingWeekend
-            const isHoliday = holidays.has(dateString)
+            const holiday = holidaysByDate.get(dateString)
+            const vacation = vacationsByDate.get(dateString)
+            const isHoliday = Boolean(holiday)
             const dateEvents = eventsByDate.get(dateString) ?? []
             const transitionIndex = getMonthTransitionIndex(index, days)
             const classNames = [
@@ -189,6 +218,7 @@ export function Calendar() {
               index % 7 === 6 && 'day-cell--week-end',
               isWeekend && 'day-cell--weekend',
               isHoliday && 'day-cell--holiday',
+              vacation && 'day-cell--vacation',
               dateString === formatDate(today) && 'day-cell--today',
               dateString === selectedDate && 'day-cell--selected',
               transitionIndex !== -1 &&
@@ -223,9 +253,16 @@ export function Calendar() {
                   {date.getDate()}
                 </span>
 
+                {holiday && (
+                  <span className="holiday-label">{holiday.title}</span>
+                )}
+                {vacation && (
+                  <span className="vacation-label">{vacation.title}</span>
+                )}
+
                 {dateEvents.slice(0, 3).map((event, eventIndex) => (
                   <span
-                    key={`${event.title}-${eventIndex}`}
+                    key={`${event.id}-${eventIndex}`}
                     className="event-label"
                   >
                     {event.title}
@@ -238,42 +275,31 @@ export function Calendar() {
               </button>
             )
           })}
+          </div>
         </div>
+
+        <CalendarForms
+          key={selectedDate}
+          initialDate={selectedDate}
+          selectedEvents={eventsByDate.get(selectedDate) ?? []}
+          selectedHolidays={data.holidays.filter((holiday) =>
+            isDateInPeriod(selectedDate, holiday),
+          )}
+          selectedVacations={data.vacations.filter((vacation) =>
+            isDateInPeriod(selectedDate, vacation),
+          )}
+          onSaved={() => setDataVersion((version) => version + 1)}
+        />
       </div>
-
-      <section className="events-section" aria-labelledby="events-title">
-        <div className="events-heading">
-          <div>
-            <p className="section-kicker">Расписание</p>
-            <h2 id="events-title">События</h2>
-          </div>
-          <span>{data.events.length}</span>
-        </div>
-
-        {data.events.length === 0 ? (
-          <div className="empty-state">
-            Событий пока нет. Загрузите существующий YAML-файл.
-          </div>
-        ) : (
-          <div className="record-list">
-            {data.events.map((event, index) => (
-              <article
-                key={`${event.date}-${event.title}-${index}`}
-                className={[
-                  'record-item',
-                  event.date === selectedDate && 'record-item--selected',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-              >
-                <strong>{event.title}</strong>
-                <time dateTime={event.date}>{event.date}</time>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
     </section>
+  )
+}
+
+function ArrowIcon({ direction }: { direction: 'left' | 'right' }) {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      <path d={direction === 'left' ? 'm12.5 4.5-5 5 5 5' : 'm7.5 4.5 5 5-5 5'} />
+    </svg>
   )
 }
 

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   createContinuousDays,
   formatDate,
+  groupHolidaysByDate,
   getMonthRanges,
   groupEventsByDate,
 } from './model'
@@ -29,10 +30,36 @@ describe('calendar model', () => {
 
   it('groups multiple events on the same date', () => {
     const grouped = groupEventsByDate([
-      { date: '2026-07-29', title: 'Встреча' },
-      { date: '2026-07-29', title: 'Концерт' },
+      {
+        id: 'event-1',
+        date: '2026-07-29',
+        endDate: '2026-07-30',
+        title: 'Встреча',
+        timeZone: 'Europe/Moscow',
+      },
+      {
+        id: 'event-2',
+        date: '2026-07-29',
+        title: 'Концерт',
+        timeZone: 'Europe/Moscow',
+      },
     ])
 
     expect(grouped.get('2026-07-29')).toHaveLength(2)
+    expect(grouped.get('2026-07-30')).toHaveLength(1)
+  })
+
+  it('applies a named holiday to every date in its period', () => {
+    const grouped = groupHolidaysByDate([
+      {
+        id: 'holiday-1',
+        date: '2026-12-31',
+        endDate: '2027-01-02',
+        title: 'Новогодние каникулы',
+      },
+    ])
+
+    expect(grouped.get('2027-01-01')?.title).toBe('Новогодние каникулы')
+    expect(grouped).toHaveLength(3)
   })
 })
