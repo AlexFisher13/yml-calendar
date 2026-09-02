@@ -27,6 +27,7 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'Новое событие' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Праздничный день' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Отпуск или каникулы' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Рабочий выходной' })).toBeInTheDocument()
   })
 
   it('changes the visible calendar range', () => {

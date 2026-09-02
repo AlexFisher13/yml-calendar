@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   createContinuousDays,
+  createMonthGridDays,
   formatDate,
   groupHolidaysByDate,
   getMonthRanges,
@@ -26,6 +27,14 @@ describe('calendar model', () => {
       'Август',
       'Сентябрь',
     ])
+  })
+
+  it('creates a fixed six-week month grid', () => {
+    const days = createMonthGridDays(new Date(2026, 7, 1))
+
+    expect(days).toHaveLength(42)
+    expect(days.slice(0, 5)).toEqual([null, null, null, null, null])
+    expect(formatDate(days[5]!)).toBe('2026-08-01')
   })
 
   it('groups multiple events on the same date', () => {

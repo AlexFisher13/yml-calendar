@@ -34,7 +34,7 @@ export type CalendarHoliday = {
 export type CalendarData = {
   holidays: CalendarHoliday[]
   vacations: CalendarHoliday[]
-  workingWeekends: string[]
+  workingDays: CalendarHoliday[]
   events: CalendarEvent[]
 }
 
@@ -49,7 +49,7 @@ export type MonthRange = {
 export const EMPTY_CALENDAR_DATA: CalendarData = {
   holidays: [],
   vacations: [],
-  workingWeekends: [],
+  workingDays: [],
   events: [],
 }
 
@@ -89,6 +89,29 @@ export function createContinuousDays(baseDate: Date, viewMonths: number): Array<
     for (let day = 1; day <= monthEnd.getDate(); day += 1) {
       days.push(new Date(monthDate.getFullYear(), monthDate.getMonth(), day))
     }
+  }
+
+  return days
+}
+
+export function createMonthGridDays(monthDate: Date): Array<Date | null> {
+  const days: Array<Date | null> = []
+  const firstDay = startOfMonth(monthDate)
+  const firstWeekday = (firstDay.getDay() + 6) % 7
+  const lastDay = new Date(
+    firstDay.getFullYear(),
+    firstDay.getMonth() + 1,
+    0,
+  ).getDate()
+
+  for (let index = 0; index < firstWeekday; index += 1) {
+    days.push(null)
+  }
+  for (let day = 1; day <= lastDay; day += 1) {
+    days.push(new Date(firstDay.getFullYear(), firstDay.getMonth(), day))
+  }
+  while (days.length < 42) {
+    days.push(null)
   }
 
   return days

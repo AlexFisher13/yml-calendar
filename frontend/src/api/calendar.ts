@@ -46,6 +46,12 @@ export async function createCalendarVacation(
   return sendPeriod<CalendarHoliday>('/api/v1/vacations', input)
 }
 
+export async function createCalendarWorkingDay(
+  input: Pick<PeriodInput, 'date' | 'endDate'>,
+): Promise<CalendarHoliday> {
+  return sendPeriod<CalendarHoliday>('/api/v1/working-days', input)
+}
+
 async function sendPeriod<T>(url: string, input: object): Promise<T> {
   const response = await fetch(url, {
     method: 'POST',
@@ -61,13 +67,14 @@ async function sendPeriod<T>(url: string, input: object): Promise<T> {
 }
 
 export async function deleteCalendarEntry(
-  kind: 'event' | 'holiday' | 'vacation',
+  kind: 'event' | 'holiday' | 'vacation' | 'working-day',
   id: string,
 ): Promise<void> {
   const paths = {
     event: 'events',
     holiday: 'holidays',
     vacation: 'vacations',
+    'working-day': 'working-days',
   } as const
   const response = await fetch(`/api/v1/${paths[kind]}/${id}`, {
     method: 'DELETE',

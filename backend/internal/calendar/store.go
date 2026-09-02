@@ -30,10 +30,10 @@ type Holiday struct {
 }
 
 type Data struct {
-	Holidays        []Holiday `json:"holidays"`
-	Vacations       []Holiday `json:"vacations"`
-	WorkingWeekends []string  `json:"workingWeekends"`
-	Events          []Event   `json:"events"`
+	Holidays    []Holiday `json:"holidays"`
+	Vacations   []Holiday `json:"vacations"`
+	WorkingDays []Holiday `json:"workingDays"`
+	Events      []Event   `json:"events"`
 }
 
 type Store interface {
@@ -44,8 +44,10 @@ type Store interface {
 	DeleteEvent(context.Context, string) error
 	CreateHoliday(context.Context, Holiday) (Holiday, error)
 	CreateVacation(context.Context, Holiday) (Holiday, error)
+	CreateWorkingDay(context.Context, Holiday) (Holiday, error)
 	DeleteHoliday(context.Context, string) error
 	DeleteVacation(context.Context, string) error
+	DeleteWorkingDay(context.Context, string) error
 }
 
 type PostgresStore struct {
@@ -61,7 +63,7 @@ func (store *PostgresStore) Ping(ctx context.Context) error {
 }
 
 func (store *PostgresStore) Calendar(ctx context.Context, from, to time.Time) (Data, error) {
-	data := Data{Holidays: []Holiday{}, Vacations: []Holiday{}, WorkingWeekends: []string{}, Events: []Event{}}
+	data := Data{Holidays: []Holiday{}, Vacations: []Holiday{}, WorkingDays: []Holiday{}, Events: []Event{}}
 
 	dayRows, err := store.pool.Query(ctx, `
 		SELECT id::text, day::text, end_day::text, kind::text, title
@@ -77,18 +79,18 @@ func (store *PostgresStore) Calendar(ctx context.Context, from, to time.Time) (D
 			dayRows.Close()
 			return data, err
 		}
-		if kind == "holiday" || kind == "vacation" {
-			holiday := Holiday{ID: id, Date: day, Title: title}
+		if kind == "holiday" || kind == "vacation" || kind == "working_weekend" {
+			period := Holiday{ID: id, Date: day, Title: title}
 			if endDay != day {
-				holiday.EndDate = endDay
+				period.EndDate = endDay
 			}
 			if kind == "holiday" {
-				data.Holidays = append(data.Holidays, holiday)
+				data.Holidays = append(data.Holidays, period)
+			} else if kind == "vacation" {
+				data.Vacations = append(data.Vacations, period)
 			} else {
-				data.Vacations = append(data.Vacations, holiday)
+				data.WorkingDays = append(data.WorkingDays, period)
 			}
-		} else {
-			data.WorkingWeekends = append(data.WorkingWeekends, day)
 		}
 	}
 	if err := dayRows.Err(); err != nil {
@@ -160,6 +162,11 @@ func (store *PostgresStore) CreateVacation(ctx context.Context, vacation Holiday
 	return store.createCalendarPeriod(ctx, vacation, "vacation")
 }
 
+func (store *PostgresStore) CreateWorkingDay(ctx context.Context, workingDay Holiday) (Holiday, error) {
+	workingDay.Title = "Рабочий день"
+	return store.createCalendarPeriod(ctx, workingDay, "working_weekend")
+}
+
 func (store *PostgresStore) createCalendarPeriod(ctx context.Context, period Holiday, kind string) (Holiday, error) {
 	endDate := period.EndDate
 	if endDate == "" {
@@ -181,6 +188,10 @@ func (store *PostgresStore) DeleteHoliday(ctx context.Context, id string) error 
 
 func (store *PostgresStore) DeleteVacation(ctx context.Context, id string) error {
 	return store.deleteCalendarPeriod(ctx, id, "vacation")
+}
+
+func (store *PostgresStore) DeleteWorkingDay(ctx context.Context, id string) error {
+	return store.deleteCalendarPeriod(ctx, id, "working_weekend")
 }
 
 func (store *PostgresStore) deleteCalendarPeriod(ctx context.Context, id, kind string) error {

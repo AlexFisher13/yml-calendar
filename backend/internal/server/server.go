@@ -29,6 +29,8 @@ func New(store calendarstore.Store) http.Handler {
 	mux.HandleFunc("DELETE /api/v1/holidays/{id}", api.deleteHoliday)
 	mux.HandleFunc("POST /api/v1/vacations", api.createVacation)
 	mux.HandleFunc("DELETE /api/v1/vacations/{id}", api.deleteVacation)
+	mux.HandleFunc("POST /api/v1/working-days", api.createWorkingDay)
+	mux.HandleFunc("DELETE /api/v1/working-days/{id}", api.deleteWorkingDay)
 	return recoverMiddleware(logMiddleware(mux))
 }
 
@@ -124,6 +126,27 @@ func (api *api) createVacation(writer http.ResponseWriter, request *http.Request
 	api.createNamedPeriod(writer, request, "отпуск или каникулы", api.store.CreateVacation)
 }
 
+func (api *api) createWorkingDay(writer http.ResponseWriter, request *http.Request) {
+	var workingDay calendarstore.Holiday
+	decoder := json.NewDecoder(http.MaxBytesReader(writer, request.Body, 64<<10))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&workingDay); err != nil {
+		writeError(writer, http.StatusBadRequest, "invalid_json", "Некорректное тело запроса")
+		return
+	}
+	if !validatePeriod(writer, workingDay.Date, workingDay.EndDate) {
+		return
+	}
+
+	workingDay, err := api.store.CreateWorkingDay(request.Context(), workingDay)
+	if err != nil {
+		slog.Error("создание рабочего дня", "error", err)
+		writeError(writer, http.StatusInternalServerError, "internal_error", "Не удалось сохранить запись")
+		return
+	}
+	writeJSON(writer, http.StatusCreated, workingDay)
+}
+
 func (api *api) createNamedPeriod(
 	writer http.ResponseWriter,
 	request *http.Request,
@@ -161,6 +184,10 @@ func (api *api) deleteHoliday(writer http.ResponseWriter, request *http.Request)
 
 func (api *api) deleteVacation(writer http.ResponseWriter, request *http.Request) {
 	api.deleteNamedPeriod(writer, request, "отпуск или каникулы", api.store.DeleteVacation)
+}
+
+func (api *api) deleteWorkingDay(writer http.ResponseWriter, request *http.Request) {
+	api.deleteNamedPeriod(writer, request, "рабочий день", api.store.DeleteWorkingDay)
 }
 
 func (api *api) deleteNamedPeriod(
